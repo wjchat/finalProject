@@ -110,12 +110,27 @@ class Movie(object): #define movie class with appropriate data
 #write function which returns average number of favorites of users top 10 tweets, then appends this information as a dictionary item in user list of dictionaries 
 
 #create database with three tables Tweets, Users, and Movies
+conn = sqlite3.connect('final_project.db')
+cur = conn.cursor()
+
 
 #create tweet table including text, id, user who posted, movie search the tweet derived from, # of favorites, # of retweets
 
+cur.execute("DROP TABLE IF EXISTS Tweets")
+table_spec = "CREATE TABLE IF NOT EXISTS Tweets "
+table_spec += 'Tweets(text TEXT, id TEXT, user TEXT, movie_derived TEXT, favs INT, retweets INT)'
+cur.execute(table_spec)
+
 #create user table representing user ID, screen name, number of favs the user has made, and average number of favorites for top 10 tweets
 
+cur.execute('DROP TABLE IF EXISTS Users')
+table_spec = 'CREATE TABLE IF NOT EXISTS Users '
+table_spec += 'Users(id TEXT, screen_name TEXT, user_favs INT, average_favs INT)'
+cur.execute(table_spec)
+
 #create movie table including movie ID, title, director,# of languages, IMDB rating, lead actor, and box office 
+
+
 
 #write statements to load data into all three tables
 

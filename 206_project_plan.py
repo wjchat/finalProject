@@ -137,6 +137,7 @@ class Movie(object): #define movie class with appropriate data
 
 #writes information^ to a text file in normal english which presents insight into the relationship of social media and box office among other things
 
+
 class Task1(unittest.TestCase):
 	def test_movie_caching(self):
 		fstr = open("SI206_final_cache.json","r").read()

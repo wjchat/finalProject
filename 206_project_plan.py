@@ -62,14 +62,16 @@ def get_movie_info(title, year):
 		
 		return CACHE_DICTION[unique_identifier] #returns dictionary of movie information
 
-def get_user_tweets(user):  #function to get information about a users timeline
-	unique_identifier = user 
+
+
+def get_user_info(user):  #function to get information about a users timeline
+	unique_identifier = '@'+ user 
 	if unique_identifier in CACHE_DICTION: #checks for the cached data
 		print('using cached data for ' + unique_identifier)
 		return CACHE_DICTION[unique_identifier]
 	else:
 		print('retrieving data from the web for ' + unique_identifier)
-		search_results = api.user_timeline(unique_identifier)
+		search_results = api.get_user(unique_identifier)
 		CACHE_DICTION[unique_identifier] = search_results
 
 		f = open(CACHE_FNAME, 'w')
@@ -77,6 +79,50 @@ def get_user_tweets(user):  #function to get information about a users timeline
 		f.close()
 
 		return(CACHE_DICTION[unique_identifier])
+
+
+
+def get_tweets(keyword):
+	unique_identifier = 'twitter_'+ keyword #creates flexible unique identifier depending on search query
+
+	if unique_identifier in CACHE_DICTION:
+		print('using cached data for tweets'+ unique_identifier)
+
+	else:
+		print('getting new data from the web for tweets'+ unique_identifier)
+
+		search_results = api.search(q = keyword) #returns a list
+
+		CACHE_DICTION[unique_identifier] = search_results
+
+		f = open(CACHE_FNAME, 'w')
+		f.write(json.dumps(CACHE_DICTION))
+		f.close()
+
+	searcher = CACHE_DICTION[unique_identifier] #puts returned list into variable searcher
+
+	tweets = []
+	for item in searcher['statuses']:
+		tweets.append(item)
+	return tweets
+
+print(get_tweets('s')[0])
+
+
+
+def get_twitter_users(tweet_text):		#funciton from hw 7
+	users = re.findall('@(\w+)', tweet_text)
+	users_final = [(user) for user in users]
+	return users_final #returns list of users
+
+class Tweets(object): #defines tweet class to make accessing information about it a lot lot lot easier
+	def __init__(self, tweet):
+		self.text = tweet['text']
+		self.id = tweet['id_str']
+		self.user_id = tweet['user']['id_str']
+		self.favs = tweet['favorite_count']
+		self.rts = tweet['retweet_count']
+
 
 
 class Movie(object): #define movie class with appropriate data
@@ -115,6 +161,7 @@ class Movie(object): #define movie class with appropriate data
 		return lead
 
 
+
 #define list of tuples of movies and years to use for later search
 
 searchable_movies = [('La La Land', 2016), ('Moonlight', 2016), ('Arrival', 2016), ('Jackie', 2016), ('Deadpool', 2016)]
@@ -128,27 +175,62 @@ for each in searchable_movies:
 	movie_lst.update({mov.title: mov})
 
 #for each in movie_lst:
-#	print(movie_lst[each].get_lead())
+#	print(movie_lst[each].title)
 
 
 
-#write a for loop which uses get_user_tweets to return information about each leads timeline and then saves this information in a list of dictionaries
+#write a for loop which searches for the movie and returns a list of tweets mentioning aforementioned movie
 
-user_info = []
+tweets = [] #list of tweet objects
+actor_tweets = {}
 
-for each in movie_lst:
-	user_info.append(get_user_tweets(movie_lst[each].get_lead()))
+for movie in movie_lst:
+
+	movie_tweets = get_tweets(movie_lst[movie].get_lead())
+
+	for each in movie_tweets:
+		tweet = Tweets(each)
+		tweets.append((tweet)) #appends list of twitter objects
+
+	actor_tweets[movie_lst[movie].get_lead()] = movie_tweets #creates dictionary for later usage where key is actor and value is list of twitter objects
+
+print(tweets[0])
+
+#print(len(tweets))
+
+#print(tweets)
+
+#tweets = [x.text for lst in tweets for x in lst]
 
 
-#write code to get information about every user in the neighborhood and append that to the list mentioned above
-
-def get_twitter_users(tweet):		#funciton from hw 7
-	users = re.findall('@(\w+)', tweet)
-	users_final = [(user) for user in users]
-	return users_final
+#write code to get information about every user in the neighborhood and append that to a list of users
 
 
-#write function which returns average number of favorites of users top 10 tweets, then appends this information as a dictionary item in user list of dictionaries 
+users_list = []
+
+for tweet in tweets:
+	users_list.append(get_twitter_users(tweet.text))
+
+users_list = [user for lst in users_list for user in lst] #more lst comprehension
+
+#print(users_list)
+
+#get information from timeline of every mentioned user
+
+user_info = {}
+
+for user in users_list:
+	if user not in user_info:
+		user_info[user] = get_user_info(user)
+
+
+
+##########
+
+
+#write function which returns average number of favorites of top 10 tweets mentioning an actor, then appends this information as a dictionary item in user list of dictionaries 
+
+
 
 #create database with three tables Tweets, Users, and Movies
 conn = sqlite3.connect('final_project.db')
@@ -192,6 +274,8 @@ cur.execute(table_spec)
 
 #use counter to find most reccurring word in the list created above 
 
+#use regex to find mention of movie title in tweets which mention the lead actor
+
 #map average of favorites and box office number and saves this information in a list of tuples
 
 #writes information^ to a text file in normal english which presents insight into the relationship of social media and box office among other things
@@ -222,6 +306,12 @@ class Task1(unittest.TestCase):
 		self.assertTrue(type(elf_tweets[0].favorites) == int)
 	def test_average_favs_type(self):
 		self.assertTrue(type(average_faves['Will Ferrell']) == int)
+
+#######ALSO test tweet class and movie class (aka be sure that lists are working)
+	def test_tweetlst(self):
+		self.assertTrue(type(tweets[0]) == Tweets)
+	def test_movie_lst(self):
+		self.assertTrue(type(movie_lst[0]) == Movie)
 # Write your test cases here.
 
 

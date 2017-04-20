@@ -65,7 +65,11 @@ def get_movie_info(title, year):
 
 
 def get_user_info(user):  #function to get information about a users timeline
-	unique_identifier = '@'+ user 
+	if type(user) == str:
+		unique_identifier = '@'+ user 
+	if type(user) == int:
+		unique_identifier = str(user)
+
 	if unique_identifier in CACHE_DICTION: #checks for the cached data
 		print('using cached data for ' + unique_identifier)
 		return CACHE_DICTION[unique_identifier]
@@ -83,7 +87,7 @@ def get_user_info(user):  #function to get information about a users timeline
 
 
 def get_tweets(keyword):
-	unique_identifier = 'twitter_'+ keyword #creates flexible unique identifier depending on search query
+	unique_identifier = 'twitter-'+ keyword #creates flexible unique identifier depending on search query
 
 	if unique_identifier in CACHE_DICTION:
 		print('using cached data for tweets'+ unique_identifier)
@@ -104,14 +108,34 @@ def get_tweets(keyword):
 	tweets = []
 	
 	for item in searcher['statuses']:
-		tweets.append(item)
+		if keyword.lower() in item['text'].lower():
+			tweets.append(item)
 	return tweets
 
 #print(get_tweets('s')[0])
 
+#write function which returns average number of favorites of top 10 tweets mentioning an actor, then appends this information as a dictionary item in user list of dictionaries 
+#takes dictionary of actor_tweets and returns a dictionary where the key is the actors name and the value is the average amount of favs of tweets mentioning them
+
+def average_favs(actor_and_tweets_dict): 
+	dic_of_favs = {}
+
+	for each in actor_and_tweets_dict:
+		actor = each
+		tweet_list = actor_and_tweets_dict[each]
+		total_favs = 0
+
+		for tweet in tweet_list:
+			total_favs += tweet.favs
 
 
-def get_twitter_users(tweet_text):		#funciton from hw 7
+		dic_of_favs[actor] = total_favs/len(tweet_list)
+		
+	return dic_of_favs
+
+
+
+def get_neighborhood(tweet_text):		#funciton from hw 7  ##returns neighborhood of users
 	users = re.findall('@(\w+)', tweet_text)
 	users_final = [(user) for user in users]
 	return users_final #returns list of users
@@ -134,13 +158,14 @@ class Movie(object): #define movie class with appropriate data
 		movie = get_movie_info(movie, year)
 		self.title = movie['Title']
 		self.ID = movie['imdbID']
-		self.rating = movie['imdbRating']
+		self.imdb_rating = movie['imdbRating']
 		self.actors = movie['Actors']
 		self.languages = movie['Language']
 		self.rating = movie['Rated']
 		self.box_office = movie['BoxOffice']
 		self.year = movie['Year']
 		self.director = movie['Director']
+		self.average_favs_lead = 0
 
 	#define str method to print the name, year, and actors of a movie
 	#should print "movie, year, staring lead_actor"
@@ -152,7 +177,7 @@ class Movie(object): #define movie class with appropriate data
 
 	def num_languages(self):
 		x = 0
-		for each in self.languages:
+		for each in self.languages.split():
 			x += 1
 		return x
 
@@ -194,8 +219,10 @@ actor_tweets = {} #dictionary where key is actor and value is list of tweet obje
 
 #create dictionary where key is actor name and value is list of tweet objects associated with that actor
 
+
 for movie in movie_lst:
 	lead = movie_lst[movie].get_lead()
+
 	movie_tweets = get_tweets(lead)
 	#convert tweet list into tweet objects
 
@@ -210,7 +237,7 @@ for movie in movie_lst:
 	for tweet in movie_tweets:
 		tweets.append(Tweets(tweet))
 
-#print(type(actor_tweets['Ryan Gosling'][0]))
+
 
 
 
@@ -219,8 +246,10 @@ for movie in movie_lst:
 
 for movie in movies:
 	for tweet in tweets:
-		if movie.get_lead() in tweet.text:
+		text = tweet.text.lower()
+		if movie.get_lead().lower() in text:
 			tweet.movie_derived = movie.title
+
 
 
 
@@ -229,9 +258,13 @@ for movie in movies:
 users_list = []
 
 for tweet in tweets:
-	users_list.append(get_twitter_users(tweet.text))
+	users_list.append(get_neighborhood(tweet.text))
+	
 
 users_list = [user for lst in users_list for user in lst] #more lst comprehension
+
+for tweet in tweets:
+	users_list.append(int(tweet.user_id))
 
 #print(users_list)
 
@@ -253,29 +286,17 @@ for user in user_list_uniques:
 
 
 ##########
-#write function which returns average number of favorites of top 10 tweets mentioning an actor, then appends this information as a dictionary item in user list of dictionaries 
-#takes dictionary of actor_tweets and returns a dictionary where the key is the actors name and the value is the average amount of favs of tweets mentioning them
-
-def average_favs(actor_and_tweets_dict): 
-	dic_of_favs = {}
-
-	
-
-	for each in actor_and_tweets_dict:
-		actor = each
-		tweet_list = actor_and_tweets_dict[each]
-		total_favs = 0
-
-		for tweet in tweet_list:
-			total_favs += tweet.favs
 
 
-		dic_of_favs[actor] = total_favs/len(tweet_list)
-		
-	return dic_of_favs
 
+average_favorites_dict = average_favs(actor_tweets) #creates dictionary invoking ^ function
 
-average_favorites = average_favs(actor_tweets) #creates dictionary invoking ^ function
+for movie in movies:
+	for lead in average_favorites_dict:
+		if movie.get_lead() == lead:
+			movie.average_favs_lead = average_favorites_dict[lead]
+	#print(movie.average_favs_lead, movie.get_lead())     				WE GOOD
+#print(average_favorites_dict)
 
 #create database with three tables Tweets, Users, and Movies
 conn = sqlite3.connect('final_project.db')
@@ -286,7 +307,7 @@ cur = conn.cursor()
 
 cur.execute("DROP TABLE IF EXISTS Tweets")
 table_spec = "CREATE TABLE IF NOT EXISTS "
-table_spec += 'Tweets(text TEXT, id TEXT, user TEXT, favs INTEGER, retweets INTEGER, movie_derived TEXT)'
+table_spec += 'Tweets(text TEXT, id TEXT, user_id TEXT, favs INTEGER, retweets INTEGER, movie_derived TEXT)'
 
 
 
@@ -303,8 +324,8 @@ cur.execute(table_spec)
 
 cur.execute('DROP TABLE IF EXISTS Movies')
 table_spec = 'CREATE TABLE IF NOT EXISTS  '
-table_spec += 'Movies(id TEXT, title TEXT, director TEXT, num_languages INTEGER, rating TEXT, lead TEXT, box_office INTEGER)'
-########, average_favs_lead INTEGER needs to be added later
+table_spec += 'Movies(id TEXT, title TEXT, director TEXT, num_languages INTEGER, rating TEXT, lead TEXT, box_office INTEGER, average_favs_lead INTEGER, imdb_rating INTEGER)'
+
 cur.execute(table_spec)
 
 #write statements to load data into all three tables
@@ -326,10 +347,10 @@ for user in user_info:
 for each in info:
 	cur.execute(statements, each)
 
-statements = 'INSERT INTO Movies VALUES (?, ?, ?, ?, ?, ?, ?)'
+statements = 'INSERT INTO Movies VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 info = []
 for movie in movies:
-	info.append((movie.ID, movie.title, movie.director, movie.num_languages(), movie.rating, movie.get_lead(), movie.box_office))
+	info.append((movie.ID, movie.title, movie.director, movie.num_languages(), movie.rating, movie.get_lead(), movie.box_office, movie.average_favs_lead, movie.imdb_rating))
 for each in info:
 	cur.execute(statements, each)
 
@@ -337,13 +358,49 @@ for each in info:
 conn.commit()
 
 
-#make query that returns list of tuples where first element is the # of favorites of a tweet the second element is the box office, and the third element is the movie it derived from
 
-#query that returns list of tuples where the first element is the # of languages, the second element is the average number of favorites for top 10 tweets, and the third element is the screenname of the lead actor in the movie
 
-#query that returns list of tuples where first element is number of favs lead has made and the second element is the box office 
+#make query that returns list of tuples where first element is the # of favorites of a tweet the second element is the box office
 
+query = 'SELECT Tweets.favs, Movies.box_office FROM Tweets INNER JOIN Movies on Tweets.movie_derived = Movies.title'
+cur.execute(query)
+num_favs_box_office = cur.fetchall()
+
+
+#query that returns list of tuples where the first element is the # of languages, the second element is the average number of favorites regarding a movei, and the third element is the screenname of the lead actor in the movie where imdb rating >= 8
+
+query = 'SELECT num_languages, average_favs_lead, lead FROM Movies WHERE imdb_rating >= 8'
+cur.execute(query)
+num_lan_av_favs_lead = cur.fetchall()
+#print(num_lan_av_favs_lead)
+
+
+#query that returns list of tuples where first element is number of favs of user and second is movie derived (to see if some movies have more active users)
+
+query2 = ('SELECT Users.user_favs, Tweets.movie_derived FROM Tweets INNER JOIN Users on Users.id = Tweets.user_id')
+cur.execute(query2)
+user_favs_movie = cur.fetchall()
+#print(user_favs_movie)
+
+
+	
 #query that returns list of tuples where first element is user screenname and second element is tweet text
+
+query = 'SELECT Users.screen_name, Tweets.text FROM Users INNER JOIN Tweets on Users.id = Tweets.user_id'
+cur.execute(query)
+names_and_text = cur.fetchall()
+
+
+#query that returns the screen name of every account with more than 500 retweets or 500 favorites
+query = 'SELECT Users.screen_name from Users INNER JOIN Tweets on Users.id = Tweets.user_id WHERE Tweets.retweets >=500 or Tweets.favs >=500'
+cur.execute(query)
+big_names = cur.fetchall()
+#print(big_names)
+
+
+
+#print(names_and_text[0], names_and_text[-1])
+#print(len(names_and_text))
 
 #use dictionary comprehension to make dict where key is the name of a lead has made and the value is the box office of the film
 

@@ -448,7 +448,7 @@ for each in rts_and_box:
 
 
 boxOfficeRetweets = list(map(average, lst_rts_box))
-print(boxOfficeRetweets)
+#print(boxOfficeRetweets)
 
 
 #print(boxOfficeRetweets)

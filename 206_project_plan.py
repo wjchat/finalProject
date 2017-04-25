@@ -40,7 +40,7 @@ except:
 	CACHE_DICTION = {}
 
 
-def get_movie_info(title, year):
+def get_movie_info(title = str, year = int):
 	unique_identifier = title + str(year) + 'movie'
 
 	if unique_identifier in CACHE_DICTION:
@@ -82,7 +82,7 @@ def get_user_info(user):  #function to get information about a users timeline
 		f.write(json.dumps(CACHE_DICTION))
 		f.close()
 
-		return(CACHE_DICTION[unique_identifier])
+		return(CACHE_DICTION[unique_identifier]) 
 
 
 
@@ -132,6 +132,15 @@ def average_favs(actor_and_tweets_dict):
 		dic_of_favs[actor] = total_favs/len(tweet_list)
 		
 	return dic_of_favs
+
+def average(tup):    #takes a list of tuples where second item is a list and returns a list of tuples where the second item is averaged
+	total = 0
+	length = 0
+	for number in tup[1]:
+		total += number
+		length +=1
+
+	return (tup[0], total/length)
 
 
 
@@ -251,8 +260,6 @@ for movie in movies:
 			tweet.movie_derived = movie.title
 
 
-
-
 #write code to get information about every user in the neighborhood and append that to a list of users
 
 users_list = []
@@ -360,19 +367,19 @@ conn.commit()
 
 
 
-#make query that returns list of tuples where first element is the # of favorites of a tweet the second element is the box office
+#make query that returns list of tuples where first element is the # of retweets of a tweet the second element is the box office
 
-query = 'SELECT Tweets.favs, Movies.box_office FROM Tweets INNER JOIN Movies on Tweets.movie_derived = Movies.title'
+query = 'SELECT Tweets.retweets, Movies.box_office FROM Tweets INNER JOIN Movies on Tweets.movie_derived = Movies.title'
 cur.execute(query)
 num_favs_box_office = cur.fetchall()
 
 
-#query that returns list of tuples where the first element is the # of languages, the second element is the average number of favorites regarding a movei, and the third element is the screenname of the lead actor in the movie where imdb rating >= 8
+#query that returns list of tuples where the first element is the # of languages, and the second is box offie
 
-query = 'SELECT num_languages, average_favs_lead, lead FROM Movies WHERE imdb_rating >= 8'
+query = 'SELECT num_languages, box_office FROM Movies'
 cur.execute(query)
-num_lan_av_favs_lead = cur.fetchall()
-#print(num_lan_av_favs_lead)
+num_lan_av_box = cur.fetchall()
+#print(num_lan_av_box)
 
 
 #query that returns list of tuples where first element is number of favs of user and second is movie derived (to see if some movies have more active users)
@@ -384,11 +391,12 @@ user_favs_movie = cur.fetchall()
 
 
 	
-#query that returns list of tuples where first element is user screenname and second element is tweet text
+#query that returns list of tuples where first element is user screenname and second element is the text of the tweet
 
 query = 'SELECT Users.screen_name, Tweets.text FROM Users INNER JOIN Tweets on Users.id = Tweets.user_id'
 cur.execute(query)
 names_and_text = cur.fetchall()
+
 
 
 #query that returns the screen name of every account with more than 500 retweets or 500 favorites
@@ -397,32 +405,97 @@ cur.execute(query)
 big_names = cur.fetchall()
 #print(big_names)
 
-
+#select lead and box office to later write to a dictionary
+query = 'SELECT lead, box_office FROM Movies'
+cur.execute(query)
+lead_box = cur.fetchall()
 
 #print(names_and_text[0], names_and_text[-1])
 #print(len(names_and_text))
+#dict comprehension to convert num_lan_av_favs to a dictionary
+num_favs_lan_dic = {}
+for each in num_lan_av_box:
+	num_favs_lan_dic[each[0]] = each[1]
 
 #use dictionary comprehension to make dict where key is the name of a lead has made and the value is the box office of the film
 
+dic_leads_box_office = {each[0]: each[1] for each in lead_box}
+#print(dic_leads_box_office)
+
 #use list comprehension to make list of words used in tweets
+list_of_words = [word for tweet in names_and_text for word in tweet[1].split()]
 
 #use counter to find most reccurring word in the list created above 
-
-#use regex to find mention of movie title in tweets which mention the lead actor
+c = collections.Counter(list_of_words)
+most_common_word = c.most_common()
+#print(most_common_word[0])
 
 #map average of favorites and box office number and saves this information in a list of tuples
+rts_and_box = {}		#just some set up
+for tup in num_favs_box_office:
+	if tup[1] not in rts_and_box:
+		rts_and_box[tup[1]] = []
+		rts_and_box[tup[1]].append(tup[0])
+	else:
+		rts_and_box[tup[1]].append(tup[0])
 
-#writes information^ to a text file in normal english which presents insight into the relationship of social media and box office among other things
+	#print(rts_and_box)
+lst_rts_box = []		#creates list of tuples for the mapping
+for each in rts_and_box:
+	lst_rts_box.append((each, rts_and_box[each]))
 
 
+
+
+boxOfficeRetweets = list(map(average, lst_rts_box))
+print(boxOfficeRetweets)
+
+
+#print(boxOfficeRetweets)
+
+
+
+
+#write information^ to a text file in normal english which presents insight into the relationship of social media and box office among other things
+
+fileObject = 'finalProject.txt'
+
+f = open(fileObject, 'w')
+f.write('Data Analysis summary \n')
+
+f.write('Movies analyized: \n')
+for movie in movies:
+	f.write('{} starring {}\n'.format(movie.title, movie.get_lead()))
+
+f.write('\nA list of lead actors and the box office of their associated film: \n')
+for each in dic_leads_box_office:
+	f.write('The movie starring {} grossed {} \n'.format(each, dic_leads_box_office[each]))
+
+f.write('\n \nThe ten most common recurring words among all the tweets collected: \n')
+for each in most_common_word[:10]:
+	f.write('The word \'{}\' was mentioned {} times \n'.format(each[0], each[1]))
+
+f.write('\n \nA comparison of box office and the average amount of retweets. \n')
+for each in boxOfficeRetweets:
+	f.write('Tweets involving the movie which grossed {} averaged {} retweets. \n'.format(each[0], each[1]))
+
+f.write('\n \nComparison of the number of languages a film is in and its box office: \n')
+for each in num_lan_av_box:
+	f.write('{} language(s), {} in box office. \n'.format(each[0], each[1]))		
+f.close()
+
+
+# Write your test cases here.
 class Task1(unittest.TestCase):
 	def test_movie_caching(self):
-		fstr = open("SI206_final_cache.json","r").read()
-		self.assertTrue("La La Land2016movie" in fstr)
+		fstr = open("SI206_final_cache.json","r")
+		self.assertTrue("La La Land2016movie" in fstr.read())
+		fstr.close()
+
 	def test_movie_tweets(self):
-		self.assertEqual(type(elf_tweets),type([]))
+		self.assertEqual(type(tweets),type([]))
 	def test_lead_has_5_tweets(self):
-		self.assertTrue(lead_tweets >= 5)
+		self.assertTrue(len(tweets) >= 5)
 	def test_tweets_4(self):
 		conn = sqlite3.connect('final_project.db')
 		cur = conn.cursor()
@@ -433,22 +506,54 @@ class Task1(unittest.TestCase):
 			self.assertTrue(result[0][0] != result[20][0])
 		conn.close()
 	def test_lead_actors_func(self):
-		self.assertEqual(get_lead(Elf), 'Will Ferrell')
+		for movie in movies:
+			if movie.title == 'La La Land':
+				self.assertTrue(movie.get_lead() == 'Ryan Gosling')
 	def test_tweet_type(self):
-		self.assertTrue(type(elf_tweets[0].text) == str)
+		self.assertTrue(type(tweets[0].text) == str)
 	def test_fav_type(self):
-		self.assertTrue(type(elf_tweets[0].favorites) == int)
+		self.assertTrue(type(tweets[0].favs) == int)
 	def test_average_favs_type(self):
-		self.assertTrue(type(average_faves['Will Ferrell']) == int)
-
-#######ALSO test tweet class and movie class (aka be sure that lists are working)
+		self.assertTrue(type(movies[0].average_favs_lead) == float)
 	def test_tweetlst(self):
 		self.assertTrue(type(tweets[0]) == Tweets)
 	def test_movie_lst(self):
-		self.assertTrue(type(movie_lst[0]) == Movie)
-# Write your test cases here.
-
+		self.assertTrue(type(movies[0]) == Movie)
+	def test_movie_retrival_type(self):
+		self.assertTrue(type(get_movie_info('La La Land', 2016) == dict))
+	def test_movie_retrival_title(self):
+		self.assertTrue(get_movie_info('La La Land', 2016)['Title'] == 'La La Land')
+	def test_user_type(self):
+		self.assertTrue(type(get_user_info('realDonaldTrump')) == dict)
+	def test_user_name(self):
+		self.assertTrue(get_user_info('realDonaldTrump')['name'] == 'Donald J. Trump')
+	def test_get_tweets_lst(self):
+		self.assertTrue(type(get_tweets('jack')) == list)
+	def test_get_tweets_returns_multiple(self):
+		self.assertTrue(len(get_tweets('jack')) > 5)
+	def test_average_favs_dic(self):
+		self.assertTrue(type(average_favs(actor_tweets)) == dict)
+	def test_lenght_average_favs(self):
+		self.assertTrue(len(average_favs(actor_tweets)) == 5)
+	def test_average(self):
+		self.assertEqual(average(('chez', [13, 10, 7])), ('chez', 10))
+	def test_av_type(self):
+		self.assertTrue(type(average(('chez', [13, 10, 7]))) == tuple)
+	def test_neighborhood(self):
+		self.assertTrue(type(get_neighborhood(tweets[0].text)) == list)
+	def test_tweet_text(self):
+		self.assertTrue(type(tweets[0].text) == str)
+	def test_tweet_rts(self):
+		self.assertTrue(type(tweets[0].rts) == int)
+	def test_movie_title(self):
+		self.assertTrue(type(movies[0].title) == str)
+	def test_movie_imdb_type(self):
+		self.assertEqual(type(movies[0].imdb_rating), str)
+	def test_num_languages(self):
+		self.assertTrue(type(movies[0].num_languages()) == int)
+	def test_str_(self):
+		self.assertTrue(type(movies[0].__str__()) == str)
 
 ## Remember to invoke all your tests...
-#if __name__ == "__main__":
-#	unittest.main(verbosity=2)
+if __name__ == "__main__":
+	unittest.main(verbosity=2)
